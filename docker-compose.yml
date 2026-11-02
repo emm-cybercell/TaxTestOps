@@ -1,0 +1,59 @@
+services:
+  # ---------------------------------------------------------------------------
+  # 被测个税服务 (SUT)
+  # ---------------------------------------------------------------------------
+  tax-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taxtestops-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TAX_ENVIRONMENT=staging
+      - TAX_DATABASE_URL=sqlite:////app/var/tax_service.db
+      - TAX_CALCULATOR_IMPL=legacy # 默认保留缺陷，用于自动化回归与平台演示
+      - TAX_CACHE_BACKEND=memory
+      - TAX_RATE_LIMIT_PER_MINUTE=300
+    volumes:
+      - tax_data:/app/var
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/healthz\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # 测试执行与管理平台 (TestOps Platform)
+  # ---------------------------------------------------------------------------
+  tax-platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taxtestops-platform
+    restart: unless-stopped
+    command: ["uvicorn", "tax_service.platform.app:create_platform_app", "--factory", "--host", "0.0.0.0", "--port", "8100"]
+    ports:
+      - "8100:8100"
+    depends_on:
+      tax-service:
+        condition: service_healthy
+    environment:
+      - TAX_ENVIRONMENT=staging
+      - TAX_DATABASE_URL=sqlite:////app/var/platform.db
+      - TAX_PLATFORM_TARGET_BASE_URL=http://tax-service:8000
+      - TAX_PLATFORM_SCHEDULE_ENABLED=false
+    volumes:
+      - platform_data:/app/var
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8100/healthz\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  tax_data:
+  platform_data:

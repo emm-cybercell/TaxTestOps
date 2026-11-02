@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# 虚拟环境
+.venv/
+venv/
+
+# 测试产物
+allure-results/
+allure-report/
+reports/
+artifacts/
+*.log
+coverage.json
+coverage.xml
+
+# 本地数据与临时数据库
+var/
+*.db
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+.vscode/
+*.swp

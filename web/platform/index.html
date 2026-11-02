@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试平台 · TaxTestOps</title>
+  <link rel="stylesheet" href="/platform.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">测</span>
+      <div>
+        <h1>TaxTestOps 测试平台</h1>
+        <p class="subtitle">用例管理 · 执行调度 · 趋势度量</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span data-testid="target-url" class="chip">—</span>
+      <button data-testid="run-all" class="btn btn-primary">执行全部用例</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 概览 -->
+    <section class="card card-wide" aria-labelledby="summary-title">
+      <h2 id="summary-title">概览</h2>
+      <div class="metrics">
+        <div class="metric">
+          <span class="metric-label">用例总数</span>
+          <strong data-testid="metric-total-cases" class="metric-value">—</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">启用用例</span>
+          <strong data-testid="metric-enabled-cases" class="metric-value">—</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">最近通过率</span>
+          <strong data-testid="metric-latest-pass-rate" class="metric-value">—</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">历史平均通过率</span>
+          <strong data-testid="metric-average-pass-rate" class="metric-value">—</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">执行次数</span>
+          <strong data-testid="metric-total-runs" class="metric-value">—</strong>
+        </div>
+      </div>
+      <div data-testid="trend-chart" class="trend-chart" aria-label="通过率趋势"></div>
+    </section>
+
+    <!-- 用例列表 -->
+    <section class="card" aria-labelledby="cases-title">
+      <div class="panel-head">
+        <h2 id="cases-title">用例</h2>
+        <button data-testid="refresh-cases" class="btn btn-ghost">刷新</button>
+      </div>
+      <p data-testid="cases-empty" class="hint" hidden>暂无用例。可用 <code>scripts/seed_platform.py</code> 导入内置用例集。</p>
+      <table data-testid="cases-table" class="data-table" hidden>
+        <thead>
+          <tr>
+            <th scope="col">名称</th>
+            <th scope="col">方法</th>
+            <th scope="col">路径</th>
+            <th scope="col">标签</th>
+          </tr>
+        </thead>
+        <tbody data-testid="cases-rows"></tbody>
+      </table>
+    </section>
+
+    <!-- 执行历史 -->
+    <section class="card" aria-labelledby="runs-title">
+      <div class="panel-head">
+        <h2 id="runs-title">执行历史</h2>
+        <button data-testid="refresh-runs" class="btn btn-ghost">刷新</button>
+      </div>
+      <p data-testid="runs-empty" class="hint" hidden>暂无执行记录。</p>
+      <table data-testid="runs-table" class="data-table" hidden>
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">状态</th>
+            <th scope="col">通过 / 总数</th>
+            <th scope="col">通过率</th>
+            <th scope="col">耗时</th>
+          </tr>
+        </thead>
+        <tbody data-testid="runs-rows"></tbody>
+      </table>
+    </section>
+
+    <!-- 实时日志 -->
+    <section class="card card-wide" aria-labelledby="log-title">
+      <div class="panel-head">
+        <h2 id="log-title">实时执行日志</h2>
+        <span data-testid="stream-status" class="chip chip-muted">未连接</span>
+      </div>
+      <p class="hint">点击「执行全部用例」后，这里会实时显示每一条用例的结果。</p>
+      <pre data-testid="run-log" class="log" aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>TaxTestOps · 被测服务与测试平台同仓独立部署</span>
+    <a href="/docs" data-testid="platform-docs-link">平台 API 文档</a>
+  </footer>
+
+  <script src="/platform.js"></script>
+</body>
+</html>

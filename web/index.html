@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个税测算 · TaxTestOps</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">税</span>
+      <div>
+        <h1>个人所得税测算</h1>
+        <p class="subtitle">TaxTestOps · 分层自动化测试演示服务</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span data-testid="current-user" class="user-chip" hidden></span>
+      <button data-testid="logout-button" class="btn btn-ghost" hidden>退出</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 登录面板 -->
+    <section data-testid="login-panel" class="card" aria-labelledby="login-title">
+      <h2 id="login-title">登录</h2>
+      <p class="hint">演示账号由 <code>scripts/seed_demo.py</code> 创建，凭据从环境变量读取。</p>
+
+      <form data-testid="login-form" novalidate>
+        <label for="username">用户名</label>
+        <input data-testid="login-username" id="username" name="username"
+               type="text" autocomplete="username" required>
+
+        <label for="password">密码</label>
+        <input data-testid="login-password" id="password" name="password"
+               type="password" autocomplete="current-password" required>
+
+        <button data-testid="login-submit" type="submit" class="btn btn-primary">登录</button>
+      </form>
+
+      <p data-testid="login-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <!-- 测算面板 -->
+    <section data-testid="calculator-panel" class="card" aria-labelledby="calc-title" hidden>
+      <h2 id="calc-title">月度个税测算</h2>
+
+      <form data-testid="calculator-form" novalidate>
+        <label for="salary">月工资（已扣除三险一金，元）</label>
+        <input data-testid="input-salary" id="salary" name="salary"
+               type="number" min="0" max="10000000" step="100" value="20000" required>
+
+        <div class="grid">
+          <div>
+            <label for="children">子女个数</label>
+            <input data-testid="input-children" id="children" name="children_num"
+                   type="number" min="0" max="20" step="1" value="0">
+          </div>
+
+          <div>
+            <label for="keep-stu">继续教育</label>
+            <select data-testid="input-keep-stu" id="keep-stu" name="is_keep_stu">
+              <option value="0">未继续教育</option>
+              <option value="1">学历期间（每月 400 元）</option>
+              <option value="2">取得证书当年（3600 元）</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="rent">住房租金档次</label>
+            <select data-testid="input-rent" id="rent" name="is_rent_house">
+              <option value="0">无住房租金</option>
+              <option value="1">直辖市 / 省会（1500 元）</option>
+              <option value="2">人口超 100 万城市（1100 元）</option>
+              <option value="3">人口不超 100 万城市（800 元）</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="siblings">兄弟姐妹个数</label>
+            <input data-testid="input-siblings" id="siblings" name="sibling_num"
+                   type="number" min="0" max="20" step="1" value="0">
+          </div>
+        </div>
+
+        <div class="checks">
+          <label class="check">
+            <input data-testid="input-loans" id="loans" name="house_loans" type="checkbox">
+            <span>住房贷款利息（每月 1000 元）</span>
+          </label>
+          <label class="check">
+            <input data-testid="input-elderly" id="elderly" name="supporting_elderly" type="checkbox">
+            <span>赡养老人（每月 2000 元，分摊）</span>
+          </label>
+        </div>
+
+        <button data-testid="calculate-submit" type="submit" class="btn btn-primary">计算个税</button>
+      </form>
+
+      <p data-testid="calculate-error" class="error" role="alert" hidden></p>
+
+      <div data-testid="result-panel" class="result" hidden>
+        <div class="result-headline">
+          <div>
+            <span class="result-label">应纳税额</span>
+            <strong data-testid="result-tax-amount" class="result-value">—</strong>
+          </div>
+          <div>
+            <span class="result-label">应纳税所得额</span>
+            <strong data-testid="result-taxable-income" class="result-value secondary">—</strong>
+          </div>
+        </div>
+
+        <table class="deductions">
+          <caption>专项附加扣除明细</caption>
+          <thead>
+            <tr><th scope="col">项目</th><th scope="col">金额（元）</th></tr>
+          </thead>
+          <tbody data-testid="result-deductions"></tbody>
+        </table>
+
+        <p class="meta">
+          计算实现：<code data-testid="result-impl">—</code>
+          · 记录 ID：<code data-testid="result-record-id">—</code>
+        </p>
+      </div>
+    </section>
+
+    <!-- 历史记录 -->
+    <section data-testid="history-panel" class="card card-wide" aria-labelledby="history-title" hidden>
+      <div class="panel-head">
+        <h2 id="history-title">申报记录</h2>
+        <button data-testid="refresh-history" class="btn btn-ghost">刷新</button>
+      </div>
+
+      <p data-testid="history-empty" class="hint" hidden>暂无记录。</p>
+
+      <table class="history" data-testid="history-table" hidden>
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">工资</th>
+            <th scope="col">应纳税所得额</th>
+            <th scope="col">应纳税额</th>
+            <th scope="col">实现</th>
+          </tr>
+        </thead>
+        <tbody data-testid="history-rows"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>TaxTestOps · 被测服务 + 分层自动化测试</span>
+    <a href="/docs" data-testid="api-docs-link">API 文档</a>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
