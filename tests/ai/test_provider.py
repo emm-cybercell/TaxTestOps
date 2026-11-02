@@ -131,6 +131,34 @@ class TestOpenAiCompatibleProvider:
         with pytest.raises(ProviderError, match="缺少 choices"):
             provider.complete("prompt")
 
+    @respx.mock
+    def test_base_url_with_v1_suffix_resolves_endpoint_cleanly(self) -> None:
+        """base_url 本身带 /v1 后缀时（如微信 chatapi），必须解析为单层 /v1/chat/completions。"""
+        v1_url = "https://chatapi.test.local/openai/v1"
+        route = respx.post(f"{v1_url}/chat/completions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {"message": {"role": "assistant", "content": '{"ok": true}'}}
+                    ]
+                },
+            )
+        )
+
+        provider = OpenAiCompatibleProvider(
+            base_url=v1_url,
+            api_key=FAKE_KEY,
+            model="deepseek",  # 别名应自动归一化为 Deepseek-v4-flash
+        )
+
+        assert provider.model == "Deepseek-v4-flash"
+        assert provider.endpoint == f"{v1_url}/chat/completions"
+
+        res = provider.complete("hi")
+        assert res == '{"ok": true}'
+        assert route.call_count == 1
+
 
 class TestBuildProvider:
     """工厂方法构造测试。"""

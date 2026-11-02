@@ -50,6 +50,15 @@ class TestResolvePath:
 
         assert resolve_path(payload, "") == payload
 
+    def test_normalizes_jsonpath_dollar_and_brackets(self) -> None:
+        """兼容 JSONPath 前缀与下标写法，如 $.tax、$.items[0].name、a..b 等。"""
+        payload = {"data": {"items": [{"name": "item0"}]}, "tax": 100}
+
+        assert resolve_path(payload, "$.tax") == 100
+        assert resolve_path(payload, "$tax") == 100
+        assert resolve_path(payload, "$.data.items[0].name") == "item0"
+        assert resolve_path(payload, "data..items[0]..name") == "item0"
+
     def test_resolves_nested_field(self) -> None:
         assert resolve_path({"a": {"b": {"c": 42}}}, "a.b.c") == 42
 

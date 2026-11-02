@@ -26,6 +26,29 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
+#: 常见模型名称别名归一化（部分网关对大小写敏感，如微信 chatapi 严格匹配 Deepseek-v4-flash）
+MODEL_ALIASES: dict[str, str] = {
+    "deepseek": "Deepseek-v4-flash",
+    "deepseek-v4-flash": "Deepseek-v4-flash",
+    "glm": "GLM-5.2",
+    "glm-5.2": "GLM-5.2",
+}
+
+
+def resolve_chat_endpoint(base_url: str) -> str:
+    """根据 base_url 智能拼装完整的 chat/completions 请求地址。
+
+    兼容两种常见的 OpenAI base_url 规范：
+    - 带 /v1 后缀（如 https://chatapi.weixin.qq.com/openai/v1 或 https://api.openai.com/v1）
+    - 不带 /v1 后缀（如 https://api.deepseek.com 或 https://api.openai.com）
+
+    直接使用完整 URL 请求，避免 httpx 处理相对/绝对路径时意外覆盖中间路径。
+    """
+    cleaned = base_url.rstrip("/")
+    if cleaned.endswith("/v1"):
+        return f"{cleaned}/chat/completions"
+    return f"{cleaned}/v1/chat/completions"
+
 
 @runtime_checkable
 class LlmProvider(Protocol):
@@ -114,8 +137,9 @@ class OpenAiCompatibleProvider:
         temperature: float = 0.0,
     ) -> None:
         self.base_url = base_url.rstrip("/")
+        self.endpoint = resolve_chat_endpoint(base_url)
         self._api_key = api_key
-        self.model = model
+        self.model = MODEL_ALIASES.get(model.lower(), model)
         self.timeout_seconds = timeout_seconds
         # 温度默认 0：用例生成与归因需要**可复现**，不需要创造力
         self.temperature = temperature
@@ -125,11 +149,12 @@ class OpenAiCompatibleProvider:
         return f"openai-compatible:{self.model}"
 
     def complete(self, prompt: str, *, system: str = "") -> str:
-        """调用 ``/v1/chat/completions``。
+        """调用 chat/completions 接口。
 
         ``httpx`` 延迟导入：AI 是可选增强，未启用时不应付出导入成本；
         同时避免在只做单元测试时加载整个 HTTP 栈。
         """
+        import time  # noqa: PLC0415
         import httpx  # noqa: PLC0415 - 可选依赖延迟加载
 
         messages: list[dict[str, str]] = []
@@ -137,28 +162,41 @@ class OpenAiCompatibleProvider:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        try:
-            with httpx.Client(base_url=self.base_url, timeout=self.timeout_seconds) as client:
-                response = client.post(
-                    "/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": self.temperature,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
-                response.raise_for_status()
-                payload = response.json()
-        except httpx.HTTPError as exc:
-            # 注意：异常信息里不能带 api_key
-            raise ProviderError(f"模型调用失败：{exc!r}") from exc
-        except (KeyError, ValueError) as exc:
-            raise ProviderError(f"模型响应格式异常：{exc!r}") from exc
+        last_error: Exception | None = None
+        payload: dict[str, Any] | None = None
+
+        for attempt in range(2):
+            try:
+                with httpx.Client(timeout=self.timeout_seconds) as client:
+                    response = client.post(
+                        self.endpoint,
+                        headers={
+                            "Authorization": f"Bearer {self._api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "temperature": self.temperature,
+                            "response_format": {"type": "json_object"},
+                        },
+                    )
+                    response.raise_for_status()
+                    payload = response.json()
+                    break
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                last_error = exc
+                if attempt == 0:
+                    time.sleep(1.0)
+                    continue
+                raise ProviderError(f"模型调用超时或网络异常（已重试）：{exc!r}") from exc
+            except httpx.HTTPError as exc:
+                # 状态码错误（如 4xx/5xx）不重试，直接抛出
+                raise ProviderError(f"模型调用失败：{exc!r}") from exc
+            except (KeyError, ValueError) as exc:
+                raise ProviderError(f"模型响应格式异常：{exc!r}") from exc
+        else:
+            raise ProviderError(f"模型调用失败：{last_error!r}")
 
         try:
             return str(payload["choices"][0]["message"]["content"])

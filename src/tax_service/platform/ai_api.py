@@ -80,7 +80,7 @@ def validate_document_url(url: str, *, settings: Settings) -> str:
             detail="目标地址指向云元数据服务，已拒绝",
         )
 
-    if settings.environment != "test":
+    if settings.environment == "production":
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         try:
             resolved = {info[4][0] for info in socket.getaddrinfo(parsed.hostname, port)}
@@ -95,7 +95,7 @@ def validate_document_url(url: str, *, settings: Settings) -> str:
             if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"非测试环境禁止访问内网地址（解析到 {ip}）",
+                    detail=f"生产环境禁止访问内网地址（解析到 {ip}）",
                 )
 
     return url

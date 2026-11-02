@@ -492,15 +492,38 @@ class TestCaseGenerator:
 
         return self._parse_model_output(raw)
 
-    @staticmethod
+    def _extract_related_schemas(self, operation: dict[str, Any]) -> dict[str, Any]:
+        """提取该操作涉及的结构模型，为大模型提供完整的数据契约上下文。"""
+        all_schemas = self.document.get("components", {}).get("schemas", {})
+        if not all_schemas:
+            return {}
+
+        operation_text = json.dumps(operation)
+        related: dict[str, Any] = {}
+        for schema_name, schema_body in all_schemas.items():
+            if schema_name in operation_text:
+                related[schema_name] = schema_body
+                for nested_name, nested_body in all_schemas.items():
+                    if nested_name in json.dumps(schema_body):
+                        related[nested_name] = nested_body
+        return related
+
     def _build_prompt(
-        target: str, operation: dict[str, Any], requirement: str | None
+        self,
+        target: str,
+        operation: dict[str, Any],
+        requirement: str | None,
     ) -> str:
+        related_schemas = self._extract_related_schemas(operation)
         sections = [
             f"目标接口：{target}",
             "接口定义（OpenAPI 片段）：",
-            json.dumps(operation, ensure_ascii=False, indent=2)[:4000],
+            json.dumps(operation, ensure_ascii=False, indent=2)[:3000],
         ]
+        if related_schemas:
+            sections.append("请求/响应模型定义 (Schemas)：")
+            sections.append(json.dumps(related_schemas, ensure_ascii=False, indent=2)[:3000])
+
         if requirement:
             sections.append("需求描述：")
             sections.append(requirement[:2000])
@@ -518,14 +541,41 @@ class TestCaseGenerator:
 
     @staticmethod
     def _parse_model_output(raw: str) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
-        """解析模型输出为候选列表。"""
+        """解析模型输出为候选列表。
+
+        具备多层容错：
+        - 自动去除 markdown 代码块标记；
+        - 支持模型直接输出列表 `[...]`；
+        - 支持模型返回单个用例对象 `{...}`；
+        - 支持模型返回包含 `cases` / `test_cases` / `items` 等键的包装字典。
+        """
+        import re  # noqa: PLC0415
+
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+            cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+
         try:
-            parsed = json.loads(raw)
+            parsed = json.loads(cleaned)
         except (ValueError, TypeError) as exc:
             return [], [{"name": "<模型输出>", "reason": f"不是合法 JSON：{exc}"}]
 
         if isinstance(parsed, dict):
-            parsed = parsed.get("cases", parsed.get("items", []))
+            if "name" in parsed or "path" in parsed:
+                parsed = [parsed]
+            else:
+                found_list = None
+                for key in ("cases", "test_cases", "items", "tests", "data", "generated"):
+                    if isinstance(parsed.get(key), list):
+                        found_list = parsed[key]
+                        break
+                if found_list is None:
+                    for val in parsed.values():
+                        if isinstance(val, list):
+                            found_list = val
+                            break
+                parsed = found_list or []
 
         if not isinstance(parsed, list):
             return [], [{"name": "<模型输出>", "reason": "顶层结构不是数组"}]

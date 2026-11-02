@@ -38,6 +38,24 @@ def _descend_into_mapping(node: dict, part: str, path: str) -> Any:
     return node.get(part)
 
 
+def _normalize_path(path: str) -> str:
+    """归一化断言取值路径。
+
+    兼容模型常用的 JSONPath 风格（如 ``$.detail[0].loc`` 或 ``$.tax_amount``），
+    统一规整为平台内部的标准点号形式（如 ``detail.0.loc`` 或 ``tax_amount``）。
+    """
+    cleaned = path.strip()
+    if cleaned.startswith("$."):
+        cleaned = cleaned[2:]
+    elif cleaned.startswith("$"):
+        cleaned = cleaned[1:]
+
+    cleaned = cleaned.replace("[", ".").replace("]", "")
+    while ".." in cleaned:
+        cleaned = cleaned.replace("..", ".")
+    return cleaned.strip(".")
+
+
 def resolve_path(payload: Any, path: str) -> Any:
     """按点号路径取值，支持列表下标。
 
@@ -48,11 +66,12 @@ def resolve_path(payload: Any, path: str) -> Any:
     :raises PathResolutionError: 路径不存在或类型不匹配。错误信息包含完整路径与
         可用字段，让失败原因可以自解释，不必回查响应体。
     """
-    if not path:
+    cleaned_path = _normalize_path(path)
+    if not cleaned_path:
         return payload
 
     node = payload
-    for part in path.split(PATH_SEPARATOR):
+    for part in cleaned_path.split(PATH_SEPARATOR):
         if isinstance(node, list):
             node = _descend_into_list(node, part, path)
         elif isinstance(node, dict):

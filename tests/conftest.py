@@ -59,7 +59,7 @@ def legacy_mode() -> bool:
 
 @pytest.fixture
 def app_settings() -> Settings:
-    """测试配置：内存库 + 内存缓存 + 随机密钥 + 近乎关闭的限流 + 低成本哈希。"""
+    """测试配置：内存库 + 内存缓存 + 随机密钥 + 近乎关闭的限流 + 低成本哈希 + 默认离线测试。"""
     return Settings(
         environment="test",
         database_url="sqlite://",
@@ -72,6 +72,9 @@ def app_settings() -> Settings:
         policy_service_url=UNREACHABLE_POLICY_SERVICE,
         policy_service_timeout_seconds=0.5,
         batch_max_size=100,
+        # 测试套件默认隔离外部 API 密钥，保证测试离线、确定性且不受外部网络/限流干扰
+        ai_enabled=False,
+        ai_api_key=None,
     )
 
 

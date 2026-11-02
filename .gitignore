@@ -31,3 +31,8 @@ var/
 .idea/
 .vscode/
 *.swp
+
+# 本地环境变量配置（含敏感密钥，严禁提交）
+.env
+.env.*
+!.env.example

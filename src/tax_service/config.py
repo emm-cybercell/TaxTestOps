@@ -128,7 +128,7 @@ class Settings(BaseSettings):
     """OpenAI 兼容端点。可指向 DeepSeek / 通义 / 本地 vLLM 等。"""
 
     ai_model: str = "gpt-4o-mini"
-    ai_timeout_seconds: float = 30.0
+    ai_timeout_seconds: float = 60.0
 
     # ------------------------------------------------------------------ #
     # 静态资源
